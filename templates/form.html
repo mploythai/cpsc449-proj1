@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Dynamically-generated form</title>
+  </head>
+
+  <body>
+    <form method="POST" action="/success">
+      <p>
+        <label for="user">Username</label>
+        <input type="text" id="user" name="username" />
+      </p>
+
+      <p>
+        <label for="pwd">Password</label>
+        <input type="password" id="pwd" name="password" />
+      </p>
+
+      <p>
+        <label for="check">New User?</label>
+        <input type="checkbox" id="check" name="check" />
+      </p>
+
+      <p>
+        <input type="submit" />
+      </p>
+    </form>
+
+    {% if data %}
+    <p>{{ data }}</p>
+    {% endif %}
+  </body>
+</html>

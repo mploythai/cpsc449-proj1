@@ -100,7 +100,7 @@ async def data():
 
 
 # game page
-@app.route("/game")
+@app.route("/startNewGame")
 @auth
 async def game():
     return "insert game stuff here."

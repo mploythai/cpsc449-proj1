@@ -5,6 +5,7 @@ import uuid
 import base64
 import hashlib
 import secrets
+import json
 
 app = Quart(__name__)
 
@@ -24,6 +25,33 @@ def auth(fcn):
         cursor.execute(
             "create table if not exists accounts (id text primary key, username text not null, password text not null)"
         )
+
+        # make the correct and valid words table
+        cursor.execute(
+            "create table if not exists correctWords (word text)"
+        )
+        cursor.execute(
+            "create table if not exists validWords (word text)"
+        )
+
+        #prevents repopulating if the tables do not need to be created
+        if cursor.fetchone() != None:
+            print("populating")
+            #insert the words from the files into their tables
+            jsonFile = open("correct.json")
+            correctJson = json.load(jsonFile)
+            for i in correctJson:
+                cursor.execute(
+                    f"insert into correctWords values ('{i}')"
+                )
+
+            jsonFile = open("valid.json")
+            validJson = json.load(jsonFile)
+            for i in validJson:
+                cursor.execute(
+                    f"insert into validWords values ('{i}')"
+                )
+
 
         if auth and auth.type == "basic" and auth.username and auth.password:
             # check if user exists in db based in user input
@@ -100,10 +128,17 @@ async def data():
 
 
 # game page
-@app.route("/game")
+@app.route("/startNewGame")
 @auth
 async def game():
-    return "insert game stuff here."
+    #select random word
+    data = cursor.execute(
+        "select word from correctWords order by Random() limit 1"
+    ).fetchone()
+    
+    #insert the new game into the user table
+    print(data[0])
+    return data[0]
 
 
 if __name__ == "__main__":

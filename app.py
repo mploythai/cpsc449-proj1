@@ -15,6 +15,7 @@ ALGORITHM = "pbkdf2_sha256"
 
 
 def auth(fcn):
+    # code by mike
     @wraps(fcn)
     async def wrapper(*args, **kwargs):
         cursor.execute(
@@ -122,28 +123,35 @@ def createWordTables():
 
 async def createGameTable(word):
     # code by juan
-    user = cursor.execute(
-        f"select username from accounts where username='mike-ploythai'"
-    ).fetchone()
-    tableName = f"{word}_{user}"
+    auth = request.authorization
+    user = str(auth.username).replace(" ", "_")
+    tableName = f"game_{user}"
 
     cursor.execute(
-        f"create table if not exists {tableName} (id text, word text, tries numeric, history text)"
+        f"create table if not exists {tableName} (word text, tries numeric, history text)"
     )
-    cursor.execute(
-        f"insert into {tableName} values ('{uuid.uuid4()}', '{word}', 5, '')"
-    )
+    cursor.execute(f"insert into {tableName} values ('{word}', 5, '')")
     connect.commit()
 
+    # for debugging purposes
+    # print the latest word
     return await render_template_string(
-        f"{cursor.execute(f'select * from {tableName}').fetchall()}"
+        f"{cursor.execute(f'select rowid, * from {tableName} order by rowid desc limit 1').fetchall()}"
     )
 
 
 @app.route("/prev-game")
 @auth
 async def prevGame():
-    return
+    auth = request.authorization
+    user = str(auth.username).replace(" ", "_")
+    tableName = f"game_{user}"
+
+    # for debugging purposes
+    # print the word from the last game
+    return await render_template_string(
+        f"{cursor.execute(f'select rowid, * from {tableName} order by rowid desc limit 1, 1').fetchall()}"
+    )
 
 
 if __name__ == "__main__":

@@ -135,9 +135,7 @@ async def createGameTable(word):
 
     # for debugging purposes
     # print the latest word and the tries and the history
-    return await render_template_string(
-        f"{cursor.execute(f'select rowid, * from {tableName} order by rowid desc limit 1').fetchall()}"
-    )
+    return {"NewGameStarted": True}, 200
 
 
 @app.route("/prev-game")

@@ -132,10 +132,59 @@ async def createGameTable(word):
     )
     cursor.execute(f"insert into {tableName} values ('{word}', 5, '')")
     connect.commit()
-
+    wordGuess()
     # for debugging purposes
     # print the latest word and the tries and the history
     return {"NewGameStarted": True}, 200
+
+@app.route("/word-Guess")
+@auth
+async def wordGuess():
+	tableName = f"game_{user}"
+	words = cursor.execute(f'select word from {tableName}').fetchone()
+	validJson = f"{validWords}"
+	correctJson = f"{correctWords}"
+	won = 0
+	guess_result = {}
+	guessed_words = [guess_result]
+	
+	for m in range(6):
+		entered_word = input()	    
+		if entered_word in validJson:
+			for i in range(5):
+				if entered_word[i] in words:
+					if words[i] == entered_word[i]:
+						if entered_word[i] in guess_result:
+							guess_result[entered_word[i]+f'{i}'] = "Correct"
+						else:
+							guess_result[entered_word[i]] = "Correct"
+					else:
+						if entered_word[i] in guess_result:
+							guess_result[entered_word[i]+f'{i}'] = "Wrong Position"
+						else:
+							guess_result[entered_word[i]] = "Wrong Position"
+				else: 
+					if entered_word[i] in guess_result:
+							guess_result[entered_word[i]+f'{i}'] = "Wrong"
+					else:
+						guess_result[entered_word[i]] = "Wrong"
+
+			if entered_word == words:
+				won = 1
+				print("You win")
+				print(guess_result)
+				break
+		else:
+			print("Invalid word. Try again!!")
+			print(guess_result)
+			m=m+1
+			continue		
+		   
+		guessed_words.append(guess_result)
+	cursor.execute(f"insert history into {tableName} values ({guessed_words})")
+	cursor.execute(f"insert won into {tableName} values ({won})")
+    connect.commit()
+	return await render_template_string(f"{tableName}")
 
 
 @app.route("/prev-game")

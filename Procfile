@@ -1,0 +1,1 @@
+app: hypercorn app --reload --debug --bind app.local.gd:$PORT --access-logfile - --error-logfile - --log-level DEBUG

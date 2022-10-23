@@ -83,24 +83,31 @@ async def index():
     return {"authenticated": True}, 200
 
 
-@app.route("/data")
-@auth
-async def data():
-    data = cursor.execute("select * from accounts").fetchall()
+# for debug
+# @app.route("/data")
+# @auth
+# async def data():
+#     data = cursor.execute("select * from accounts").fetchall()
 
-    return await render_template_string(f"{data}")
+#     return await render_template_string(f"{data}")
 
 
-@app.route("/game")
+@app.route("/game", methods=["POST"])
 @auth
 async def game():
+    return await wordGuess()
+
+
+@app.route("/game/new", methods=["POST"])
+@auth
+async def newGame():
     # code by yahya
     createWordTables()
     data = cursor.execute(
         "select word from correctWords order by Random() limit 1"
     ).fetchone()
-
-    return await createGameTable(data[0])
+    await createGameTable(data[0])
+    return await wordGuess()
 
 
 def createWordTables():
@@ -130,64 +137,90 @@ async def createGameTable(word):
     cursor.execute(
         f"create table if not exists {tableName} (word text, tries numeric, history text, won numeric DEFAULT NULL)"
     )
-    cursor.execute(f"insert into {tableName} (word, tries, history) values ('{word}', 0, '')")
+    cursor.execute(
+        f"insert into {tableName} (word, tries, history) values ('{word}', 0, '')"
+    )
     connect.commit()
-    wordGuess()
-    # for debugging purposes
-    # print the latest word and the tries and the history
-    return {"NewGameStarted": True}, 200
 
 
-@app.route("/word-Guess")
-@auth
 async def wordGuess():
+    # code by Apurva
+    auth = request.authorization
+    user = str(auth.username).replace(" ", "_")
     tableName = f"game_{user}"
-    words = cursor.execute(f'select word from {tableName}').fetchone()
-    validJson = f"{validWords}"
-    correctJson = f"{correctWords}"
-    won = 0
+    word = cursor.execute(
+        f"select word from {tableName} order by rowid desc limit 1"
+    ).fetchone()[0]
+
+    validJson = cursor.execute(f"select * from validWords").fetchall()
     guess_result = {}
     guessed_words = [guess_result]
 
-    for m in range(6):
-        entered_word = input()
-        if entered_word in validJson:
-            for i in range(5):
-                if entered_word[i] in words:
-                    if words[i] == entered_word[i]:
-                        if entered_word[i] in guess_result:
-                            guess_result[entered_word[i] + f'{i}'] = "Correct"
-                        else:
-                            guess_result[entered_word[i]] = "Correct"
+    valid = []
+    for i in validJson:
+        valid.append(i[0])
+
+    input = await request.get_json()
+    entered_word = input["word"]
+    if entered_word == word:
+        won = 1
+        cursor.execute(f"insert won into {tableName} values ({won})")
+
+        return await render_template_string(f"You won\n word is {word}")
+    else:
+        for i in range(5):
+            if entered_word[i] in word:
+                if word[i] == entered_word[i]:
+                    if entered_word[i] in guess_result:
+                        guess_result[entered_word[i] + f"{i}"] = "Correct"
                     else:
-                        if entered_word[i] in guess_result:
-                            guess_result[entered_word[i] + f'{i}'] = "Wrong Position"
-                        else:
-                            guess_result[entered_word[i]] = "Wrong Position"
+                        guess_result[entered_word[i]] = "Correct"
                 else:
                     if entered_word[i] in guess_result:
-                        guess_result[entered_word[i] + f'{i}'] = "Wrong"
+                        guess_result[entered_word[i] + f"{i}"] = "Wrong Position"
                     else:
-                        guess_result[entered_word[i]] = "Wrong"
-
-            if entered_word == words:
-                won = 1
-                print("You win")
-                print(guess_result)
-                break
-        else:
-            print("Invalid word. Try again!!")
-            print(guess_result)
-            m = m + 1
-            continue
+                        guess_result[entered_word[i]] = "Wrong Position"
+            else:
+                if entered_word[i] in guess_result:
+                    guess_result[entered_word[i] + f"{i}"] = "Wrong"
+                else:
+                    guess_result[entered_word[i]] = "Wrong"
+            cursor.execute(f"insert tries into {tableName} values ({i})")
+            connect.commit()
 
         guessed_words.append(guess_result)
-    cursor.execute(f"insert history into {tableName} values ({guessed_words})")
-    cursor.execute(f"insert won into {tableName} values ({won})")
+        cursor.execute(
+            f"insert into {tableName} (word, tries, history) values ('{word}', 5, '{guessed_words}')"
+        )
+        connect.commit()
 
+    return await render_template_string(f"Try again.\n {guess_result}")
 
-connect.commit()
-return await render_template_string(f"{tableName}")
+    # if entered_word in valid:
+    #     if entered_word == word:
+    #         won = 1
+    #         cursor.execute(f"insert won into {tableName} values ({won})")
+    #         return await render_template_string(
+    #             f"You've won! The word is {entered_word}."
+    #         )
+    #     else:
+    #         for i in range(1, 5):
+    #             if entered_word[i] in word:
+    #                 position = str(word).find(entered_word[i])
+    #                 guess_result[position] = entered_word[i]
+    #                 insert_guess = str(guess_result)
+    #                 cursor.execute(
+    #                     f"insert history into {tableName} values ('{insert_guess}')"
+    #                 )
+    #                 connect.commit()
+
+    #                 # fetch = cursor.execute(f"select * from {tableName}").fetchone()
+    #                 return await render_template_string(f"test")
+    #             else:
+    #                 return await render_template_string(f"test")
+    # else:
+    #     return await render_template_string("Invalid word. Try again!")
+    # if entered_word in validJson:
 
 
 @app.route("/prev-game")
@@ -207,10 +240,11 @@ async def prevGame():
 @app.route("/in-progress", methods=["GET"])
 @auth
 async def inProgress():
+    # code by juan
     auth = request.authorization
     user = str(auth.username).replace(" ", "_")
     tableName = f"game_{user}"
-    cursor.execute(f'select rowid, tries, history from {tableName} where won IS NULL')
+    cursor.execute(f"select rowid, tries, history from {tableName} where won IS NULL")
     rows = cursor.fetchall()
     display = []
     for i in rows:
@@ -222,25 +256,40 @@ async def inProgress():
 @app.route("/get-game/<id>", methods=["GET"])
 @auth
 async def getGame(id):
+    # code by juan
     auth = request.authorization
     user = str(auth.username).replace(" ", "_")
     tableName = f"game_{user}"
-    if cursor.execute(f'select count(*) from {tableName} where rowid = {id}').fetchone()[0] == 0:  # row does not exist
+    if (
+        cursor.execute(
+            f"select count(*) from {tableName} where rowid = {id}"
+        ).fetchone()[0]
+        == 0
+    ):  # row does not exist
         return await make_response(
             "game not found !",
-            404, )
+            404,
+        )
     else:
-        game_state = cursor.execute(f'select won from {tableName} where rowid = {id}').fetchone()[0]
+        game_state = cursor.execute(
+            f"select won from {tableName} where rowid = {id}"
+        ).fetchone()[0]
         if game_state == 1:  # game is finished and won
-            return {"game status": "won", "tries":
-                cursor.execute(f'select tries from {tableName} where rowid = {id}').fetchone()[0]}, 200
+            return {
+                "game status": "won",
+                "tries": cursor.execute(
+                    f"select tries from {tableName} where rowid = {id}"
+                ).fetchone()[0],
+            }, 200
         elif game_state == 0:  # game is finished and lost
-            return {"game status": "lost", "tries":
-                cursor.execute(f'select tries from {tableName} where rowid = {id}').fetchone()[0]}, 200
+            return {
+                "game status": "lost",
+                "tries": cursor.execute(
+                    f"select tries from {tableName} where rowid = {id}"
+                ).fetchone()[0],
+            }, 200
         else:  # game is in progress
-            tries, history = cursor.execute(f'select tries, history from {tableName} where rowid = {id}').fetchone()
+            tries, history = cursor.execute(
+                f"select tries, history from {tableName} where rowid = {id}"
+            ).fetchone()
             return {"rowid": id, "tries": tries, "history": history}, 200
-
-
-if __name__ == "__main__":
-    app.run()

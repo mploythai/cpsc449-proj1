@@ -126,10 +126,11 @@ async def createGameTable(word):
     auth = request.authorization
     user = str(auth.username).replace(" ", "_")
     tableName = f"game_{user}"
+
     cursor.execute(
-        f"create table if not exists {tableName} (word text, tries numeric, history text, status numeric DEFAULT NULL)"
+        f"create table if not exists {tableName} (word text, tries numeric, history text, won numeric DEFAULT NULL)"
     )
-    cursor.execute(f"insert into {tableName} values ('{word}', 0, '')")
+    cursor.execute(f"insert into {tableName} (word, tries, history) values ('{word}', 0, '')")
     connect.commit()
     wordGuess()
     # for debugging purposes
@@ -140,14 +141,14 @@ async def createGameTable(word):
 @app.route("/word-Guess")
 @auth
 async def wordGuess():
-    auth = request.authorization
-    user = str(auth.username).replace(" ", "_")
     tableName = f"game_{user}"
     words = cursor.execute(f'select word from {tableName}').fetchone()
     validJson = f"{validWords}"
     correctJson = f"{correctWords}"
+    won = 0
     guess_result = {}
     guessed_words = [guess_result]
+
     for m in range(6):
         entered_word = input()
         if entered_word in validJson:
@@ -215,7 +216,7 @@ async def inProgress():
     for i in rows:
         rowid, tries, history = i
         display.append({"rowid": rowid, "tries": tries, "history": history})
-    return json.dumps(display)
+    return json.dumps(display), 200
 
 
 @app.route("/get-game/<id>", methods=["GET"])
@@ -232,13 +233,13 @@ async def getGame(id):
         game_state = cursor.execute(f'select won from {tableName} where rowid = {id}').fetchone()[0]
         if game_state == 1:  # game is finished and won
             return {"game status": "won", "tries":
-                cursor.execute(f'select tries won from {tableName} where rowid = {id}').fetchone()[0]}
+                cursor.execute(f'select tries from {tableName} where rowid = {id}').fetchone()[0]}, 200
         elif game_state == 0:  # game is finished and lost
             return {"game status": "lost", "tries":
-                cursor.execute(f'select tries won from {tableName} where rowid = {id}').fetchone()[0]}
+                cursor.execute(f'select tries from {tableName} where rowid = {id}').fetchone()[0]}, 200
         else:  # game is in progress
             tries, history = cursor.execute(f'select tries, history from {tableName} where rowid = {id}').fetchone()
-            return {"rowid": id, "tries": tries, "history": history}
+            return {"rowid": id, "tries": tries, "history": history}, 200
 
 
 if __name__ == "__main__":

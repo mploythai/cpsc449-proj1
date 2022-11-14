@@ -16,6 +16,7 @@ ALGORITHM = "pbkdf2_sha256"
 
 def auth(fcn):
     # code by mike
+    # referenced from https://www.youtube.com/watch?v=VW8qJxy4XcQ
     @wraps(fcn)
     async def wrapper(*args, **kwargs):
         cursor.execute(
